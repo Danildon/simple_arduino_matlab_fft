@@ -1,37 +1,47 @@
+%% ==================== Arduino FFT Data Acquisition ====================
 clc;
-clear all;
-fclose('all');
-delete(instrfind({'Port'},{'COM3'}));
-arduino = serial('COM3', 'BaudRate', 250000);
+clear;
+fclose('all');                  % Close any open serial connections
+delete(instrfind({'Port'},{'COM3'}));  % Delete any previous COM objects
+
+% -------------------- Serial Setup --------------------
+port = 'COM3';
+baudRate = 250000;
+arduino = serial(port, 'BaudRate', baudRate);
 fopen(arduino);
 
-L=10000;
-NFFT=2048;
+% -------------------- Acquisition Parameters --------------------
+numSamples = 10000;            % Number of samples to acquire
+Fs = 3731.34;                   % Sampling frequency in Hz (268 us interval)
+defaultValue = 500;             % Default value if read fails
 
-for i=1:L
+% Preallocate array for efficiency
+y = zeros(1, numSamples);
 
-val = str2double(fscanf(arduino))  ;
-
-if isnan(val)==0
-    y(i) = val;
-else
-    y(i) = 500;
+% -------------------- Data Acquisition --------------------
+for i = 1:numSamples
+    val = str2double(fscanf(arduino));  % Read numeric value from Arduino
+    
+    if ~isnan(val)
+        y(i) = val;
+    else
+        y(i) = defaultValue;
+    end
 end
 
-end
+fclose(arduino);
+delete(arduino);
 
-Fs=3731.34; %freq di campionamento di arduino, tempo tra una lettura e l'altra 268 us => Fs=3731.34
+% -------------------- FFT Analysis --------------------
+NFFT = 2^nextpow2(numSamples);        % Next power of 2 for FFT
+Y = fft(y, NFFT) / numSamples;        % Normalize FFT
 
-NFFT = 2^nextpow2(L);
+f = Fs/2 * linspace(0,1,NFFT/2 + 1);  % Frequency vector
 
-Y = fft(y,NFFT)/L;
-
-f = Fs/2*linspace(0,1,NFFT/2+1);
-
-loglog(f,2*abs(Y(1:NFFT/2+1)));grid on;
-
-title('Single-Sided Amplitude Spectrum of y(t)')
-xlabel('Frequency (Hz)')
-ylabel('|Y(f)|')
-
-
+% -------------------- Plotting --------------------
+figure;
+loglog(f, 2*abs(Y(1:NFFT/2 + 1)), 'LineWidth', 1.5);
+grid on;
+title('Single-Sided Amplitude Spectrum of y(t)', 'FontWeight', 'bold');
+xlabel('Frequency (Hz)', 'FontWeight', 'bold');
+ylabel('|Y(f)|', 'FontWeight', 'bold');
